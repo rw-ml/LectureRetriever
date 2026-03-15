@@ -1,2 +1,3 @@
 pdfplumber
 sentence-transformers
+sklearn

@@ -6,7 +6,10 @@ def load_pdf(file_path: str):
     pages = []
     with pdfplumber.open(file_path) as pdf:
         for i, page in enumerate(pdf.pages):
-            text = page.extract_text()
+            words = page.extract_words()
+            #fix some ordering issues
+            words_sorted = sorted(words, key=lambda w: (w["top"], w["x0"]))
+            text = " ".join(w["text"] for w in words_sorted)
             if text:
                 pages.append({
                     "source": Path(file_path).name,

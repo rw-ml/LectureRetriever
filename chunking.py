@@ -2,15 +2,21 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 from helpers_chunking import MultiCentroidManager
 
-def window_similarity(embeddings, page_number, window_size=2):
-    """
-    Returns max similarity of page page_number with previous pages
-    """
 
-    start = max(0, page_number - window_size)
-    sims = embeddings[start:page_number] @ embeddings[page_number]
 
-    return sims.max() if len(sims) > 0 else 1.0
+from sklearn.cluster import AgglomerativeClustering
+
+def detect_document_type(document, slide_threshold=800):
+    """
+    Detect if document is slides or script based on avg chars per page
+    """
+    avg_chars = sum(len(p["text"]) for p in document) / len(document)
+
+    if avg_chars < slide_threshold:
+        return "slides"
+    else:
+        return "script"
+
 
 
 def split_large_text(text, max_chars):
@@ -45,56 +51,140 @@ def split_large_text(text, max_chars):
 
 
 
-
-
-
-class SemanticChunker:
-    def __init__(self,
-                 embedding_model: str = "intfloat/multilingual-e5-small",
-                 similarity_threshold: float = 0.9,
-                 max_chars: int = 2000):
-        '''
-        Semantic chunking for documents with multiple topics and large pages.
-        :param embedding_model:
-            - "intfloat/multilingual-e5-small" --> higher speed,  ~420 MB
-            - "BAAI/bge-m3" --> higher quality, slower, ~2.2 GB
-        :param similarity_threshold: minimum cosine similarity required
-        '''
-        self.embedding_model = embedding_model
-        self.similarity_threshold = similarity_threshold
+class SlidesChunker:
+    def __init__(self, merge_pages=3, overlap=1, max_chars=2500):
+        self.merge_pages = merge_pages
+        self.overlap_pages = overlap
         self.max_chars = max_chars
+        if overlap >= merge_pages:
+            raise ValueError(f"overlap_pages ({overlap}) must be smaller than merge_pages ({merge_pages})")
+
+    def chunk_document(self, document):
+        chunks = []
+        chunk_id = 0
+        source = document[0]["source"]
+        step = self.merge_pages - self.overlap_pages
+        i = 0
+        n = len(document)
+        while i < n:
+            end = min(i + self.merge_pages, n)
+            pages = document[i:end]
+            text = " ".join(p["text"] for p in pages)
+
+            # respect max_chars
+            if len(text) > self.max_chars:
+                text = text[:self.max_chars]
+            chunks.append({
+                "chunk_id": chunk_id,
+                "source": source,
+                "pages": [p["page"] for p in pages],
+                "text": text
+            })
+            chunk_id += 1
+            if end == n:
+                break
+            i += step
+        return chunks
+
+
+
+
+class RollingSemanticChunker:
+    def __init__(
+        self,
+        embedding_model="intfloat/multilingual-e5-small",
+        window_size=3,
+        deviation_factor=1.0,
+        max_chars=2000
+    ):
+        """
+        window_size: how many previous pages to compare with
+        deviation_factor: how strong similarity must drop to trigger new chunk
+        """
         self.model = SentenceTransformer(embedding_model)
+        self.window_size = window_size
+        self.deviation_factor = deviation_factor
+        self.max_chars = max_chars
 
-    def chunk_document(self, document: list[dict]):
-        """
-        document: list[dict] with keys: 'source', 'text', 'page'
-        Returns list of chunks with 'chunk_id', 'source', 'pages', 'text'
-        """
-        texts = [page["text"] for page in document]
-        embeddings = self.model.encode(texts, normalize_embeddings=True)
-
-        manager = MultiCentroidManager(similarity_threshold=self.similarity_threshold)
-
-        for idx, page in enumerate(document):
-            embedding = embeddings[idx]
+    def chunk_document(self, document):
+        texts = [p["text"] for p in document]
+        embeddings = self.model.encode(
+            texts,
+            normalize_embeddings=True
+        )
+        chunks = []
+        current_chunk_pages = []
+        current_chunk_text = []
+        similarities = []
+        source = document[0]["source"]
+        chunk_id = 0
+        for i, page in enumerate(document):
+            page_embedding = embeddings[i]
             page_text = page["text"]
             page_num = page["page"]
-            source = page["source"]
+            # ---------- similarity calculation ----------
+            if i > 0:
+                start = max(0, i - self.window_size)
+                window_embeds = embeddings[start:i]
 
-            remaining_text = page_text
-            while remaining_text:
-                part, remaining_text = split_large_text(remaining_text, self.max_chars)
+                sims = window_embeds @ page_embedding
+                sim = sims.mean()
 
-                page_info = {
+                similarities.append(sim)
+                mean = np.mean(similarities)
+                std = np.std(similarities)
+
+                topic_change = sim < (mean - self.deviation_factor * std)
+            else:
+                topic_change = False
+
+            # ---------- start new chunk ----------
+            if topic_change and current_chunk_pages:
+                chunks.append({
+                    "chunk_id": chunk_id,
                     "source": source,
-                    "page": page_num,
-                    "text": part
-                }
-                manager.add_page(embedding, page_info)
+                    "pages": current_chunk_pages,
+                    "text": " ".join(current_chunk_text)
+                })
 
-        return manager.get_chunks()
+                chunk_id += 1
+                current_chunk_pages = []
+                current_chunk_text = []
+
+            # ---------- handle large pages ----------
+            remaining_text = page_text
+
+            while remaining_text:
+                part, remaining_text = split_large_text(
+                    remaining_text,
+                    self.max_chars
+                )
+                current_chunk_pages.append(page_num)
+                current_chunk_text.append(part)
+
+        # finalize last chunk
+        if current_chunk_pages:
+            chunks.append({
+                "chunk_id": chunk_id,
+                "source": source,
+                "pages": current_chunk_pages,
+                "text": " ".join(current_chunk_text)
+            })
+        return chunks
 
 
-
-
-
+def chunk_document(document):
+    doc_type = detect_document_type(document)
+    if doc_type == "slides":
+        chunker = SlidesChunker(
+            merge_pages=3,
+            max_chars=2000,
+            overlap=1
+        )
+    else:
+        chunker = RollingSemanticChunker(
+            window_size=3,
+            deviation_factor=1.0,
+            max_chars=2000
+        )
+    return chunker.chunk_document(document)

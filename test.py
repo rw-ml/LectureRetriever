@@ -1,6 +1,6 @@
 from pdf_preprocessing.clean_text import clean_text_file
 from pdf_preprocessing.pdf_loader import load_pdf, load_multiple_pdfs, load_all_pdfs
-from chunking import SemanticChunker
+from chunking import RollingSemanticChunker, chunk_document
 
 example_pdf = r"C:\Users\robin\Downloads\02_CleanCode_WA.pdf"
 
@@ -11,20 +11,25 @@ cleaned_txt_dict = clean_text_file(txt_dict)
 
 print("Pages loaded:", len(cleaned_txt_dict))
 
-n=50
+n=0
 for key in cleaned_txt_dict[n]:
     print(key+": ", cleaned_txt_dict[n][key])
 
 #chunking
-chunker = SemanticChunker(
-    embedding_model="intfloat/multilingual-e5-small",
-    similarity_threshold=0.97,
-    max_chars=2000
-)
+chunker = RollingSemanticChunker()
 chunks = chunker.chunk_document(cleaned_txt_dict)
 
-print(f"Generated {len(chunks)} chunks\n")
+print("RollingSemantic Chunks:", len(chunks))
 
-# first chunk
-for key, val in chunks[0].items():
-    print(f"{key}: {val}")
+for c in chunks:
+    print(c["chunk_id"], c["pages"], len(c["text"]), c["text"][:30])
+
+
+chunks = chunk_document(cleaned_txt_dict)
+print("Chunks created:", len(chunks))
+
+for c in chunks:
+    print("------")
+    print("Chunk:", c["chunk_id"])
+    print("Pages:", c["pages"])
+    print("Preview:", len(c["text"]), c["text"][:100])
