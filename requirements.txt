@@ -5,3 +5,7 @@ json
 sqlalchemy
 psycopg2-binary
 pgvector
+tramsformers
+accelerate
+bitsandbytes>=0.46.1
+flash-linear-attention

@@ -4,7 +4,7 @@ from chunking.chunking import RollingSemanticChunker, chunk_document
 from database.insert_chunks import DatasetInserter
 from database.db import DBManager
 
-example_pdf = r"C:\Users\robin\Downloads\02_CleanCode_WA.pdf"
+example_pdf = r"C:\Users\robin\Downloads\SWT2_Lecture.pdf"
 
 #pdf to dict(page,topic and text)
 txt_dict = load_pdf(example_pdf)
@@ -45,4 +45,8 @@ db_manager = DBManager(sqlite_url, embedding_model="intfloat/multilingual-e5-sma
 # create tables (will create rag_db.sqlite automatically)
 db_manager.init_db()
 dataset_inserter = DatasetInserter(db_manager)
-dataset_inserter.add(chunks)
+dataset_inserter.add(
+    chunks,
+    lecture_name="SE2",
+    document_title="WholeLecture"
+)

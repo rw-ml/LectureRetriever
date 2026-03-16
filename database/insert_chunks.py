@@ -1,7 +1,8 @@
 #insert chunks into database
 
 from sentence_transformers import SentenceTransformer
-from database.models import Document, Chunk
+from database.models import Document, Chunk, Lecture
+from sqlalchemy.orm import Session
 
 
 class DatasetInserter:
@@ -13,7 +14,16 @@ class DatasetInserter:
         self.embedding_model = db_manager.embedding_model
         self.model = SentenceTransformer(self.embedding_model)
 
-    def add(self, chunks):
+    def _get_or_create_lecture(self, db: Session, lecture_name: str) -> Lecture:
+        lecture = db.query(Lecture).filter(Lecture.name == lecture_name).first()
+        if not lecture:
+            lecture = Lecture(name=lecture_name)
+            db.add(lecture)
+            db.commit()
+            db.refresh(lecture)
+        return lecture
+
+    def add(self, chunks, lecture_name: str=None, document_title:str=None):
         """
         Insert a list of chunks into the database.
 
@@ -29,11 +39,24 @@ class DatasetInserter:
         try:
             if not chunks:
                 return
+
             # Use the source from the first chunk
             source = chunks[0].get("source", "unknown")
 
+            # ---------- lecture ----------
+            lecture_id = None
+            if lecture_name:
+                lecture = self._get_or_create_lecture(db, lecture_name)
+                lecture_id = lecture.id
+            else:
+                print("Warning Lecture Name not Found")
+
             # ---------- create document entry ----------
-            document = Document(source=source)
+            document = Document(
+                source=source,
+                lecture_id=lecture.id,
+                title=document_title if document_title else chunks[0].get("title", "Untitled")
+            )
             db.add(document)
             db.commit()
             db.refresh(document)
@@ -50,6 +73,7 @@ class DatasetInserter:
             for chunk, embedding in zip(chunks, embeddings):
                 db_chunk = Chunk(
                     document_id=document_id,
+                    lecture_id=lecture_id,
                     pages=",".join(str(p) for p in chunk["pages"]),
                     text=chunk["text"],
                     embedding_model=self.embedding_model,
