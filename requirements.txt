@@ -1,3 +1,7 @@
 pdfplumber
 sentence-transformers
-sklearn
+db
+json
+sqlalchemy
+psycopg2-binary
+pgvector

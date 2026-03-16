@@ -1,6 +1,8 @@
 from pdf_preprocessing.clean_text import clean_text_file
-from pdf_preprocessing.pdf_loader import load_pdf, load_multiple_pdfs, load_all_pdfs
-from chunking import RollingSemanticChunker, chunk_document
+from pdf_preprocessing.pdf_loader import load_pdf
+from chunking.chunking import RollingSemanticChunker, chunk_document
+from database.insert_chunks import DatasetInserter
+from database.db import DBManager
 
 example_pdf = r"C:\Users\robin\Downloads\02_CleanCode_WA.pdf"
 
@@ -33,3 +35,14 @@ for c in chunks:
     print("Chunk:", c["chunk_id"])
     print("Pages:", c["pages"])
     print("Preview:", len(c["text"]), c["text"][:100])
+
+#DB_Manager
+db_file = "rag_db.sqlite"
+sqlite_url = f"sqlite:///{db_file}"
+# initialize DB manager
+db_manager = DBManager(sqlite_url, embedding_model="intfloat/multilingual-e5-small")
+
+# create tables (will create rag_db.sqlite automatically)
+db_manager.init_db()
+dataset_inserter = DatasetInserter(db_manager)
+dataset_inserter.add(chunks)

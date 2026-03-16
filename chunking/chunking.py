@@ -1,10 +1,8 @@
 from sentence_transformers import SentenceTransformer
 import numpy as np
-from helpers_chunking import MultiCentroidManager
+#from chunking.helpers_chunking import MultiCentroidManager
 
-
-
-from sklearn.cluster import AgglomerativeClustering
+#from sklearn.cluster import AgglomerativeClustering
 
 def detect_document_type(document, slide_threshold=800):
     """
@@ -100,6 +98,9 @@ class RollingSemanticChunker:
         """
         window_size: how many previous pages to compare with
         deviation_factor: how strong similarity must drop to trigger new chunk
+        embedding model: either
+            - "intfloat/multilingual-e5-small" --> higher speed,  ~420 MB
+            - "BAAI/bge-m3" --> higher quality, slower, ~2.2 GB
         """
         self.model = SentenceTransformer(embedding_model)
         self.window_size = window_size
