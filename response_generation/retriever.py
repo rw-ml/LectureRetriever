@@ -101,6 +101,7 @@ class Retriever:
                 "pages": c["pages"],
                 "document_id": c["document_id"],
                 "document_title": c["document_title"],
+                'chunk_id': c["chunk_id"],
                 "score": float(score)
             }
             for c, score in ranked[:top_k]

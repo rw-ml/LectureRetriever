@@ -7,7 +7,7 @@ from database.db import DBManager
 db = DBManager("sqlite:///rag_db.sqlite")
 db.init_db()
 
-gen = get_generator_old("Qwen/Qwen3.5-4B")
+gen = get_generator_old("Qwen/Qwen3.5-2B")
 retriever = Retriever(
     db,
     embedding_model="intfloat/multilingual-e5-small",
@@ -17,7 +17,7 @@ retriever = Retriever(
 rag = RAGPipeline(retriever, gen)
 
 answer = rag.ask(
-    "What is Reinforcement Learning?",
+    "What do I need to know about Soft Actor Critic?",
     lecture_name="SE2"
 )
 

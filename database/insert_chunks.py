@@ -54,7 +54,7 @@ class DatasetInserter:
             # ---------- create document entry ----------
             document = Document(
                 source=source,
-                lecture_id=lecture.id,
+                lecture_id=self._get_or_create_lecture(db, lecture_name).id,
                 title=document_title if document_title else chunks[0].get("title", "Untitled")
             )
             db.add(document)

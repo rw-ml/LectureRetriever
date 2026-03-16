@@ -16,12 +16,12 @@ def clean_llm_output(output: str) -> str:
 
     return output.strip()
 
-def build_context(results, max_chars=5e2):
+def build_context(results, max_chars=1e5):
     """
     Combine retrieved chunks into a prompt context.
     """
 
-    context_parts = []
+    text = "\n"
     total_chars = 0
 
     for r in results:
@@ -33,10 +33,10 @@ def build_context(results, max_chars=5e2):
         if total_chars + len(part) > max_chars:
             break
 
-        context_parts.append(part)
+        text += chunk_text + "\n"
         total_chars += len(part)
 
-    return "\n".join(context_parts)
+    return text
 
 
 def build_prompt(context, question):
