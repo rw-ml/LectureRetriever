@@ -28,7 +28,7 @@ class Generator:
             device=0 if device == "cuda" else -1
         )
 
-    def generate(self, prompt: str, max_new_tokens: int = 512, temperature: float = 0.7):
+    def generate(self, prompt: str, max_new_tokens: int = 512, temperature: float = 0.):
         outputs = self.generator(
             prompt,
             max_new_tokens=max_new_tokens,
@@ -45,7 +45,7 @@ def get_generator(model_name="Qwen/Qwen3.5-4B", quantize_4bit=True, device="cuda
     return Generator(model_name=model_name, quantize_4bit=quantize_4bit, device=device)
 
 
-def get_generator_old(model_name: str = "Qwen/Qwen3.5-4B"):
+def get_generator_old(model_name: str = "Qwen/Qwen3.5-4B", temperature: float = 0., top_p: float=1., max_tokens: int=5000):
     '''
 
     :param model_name: llm for generation
@@ -58,6 +58,8 @@ def get_generator_old(model_name: str = "Qwen/Qwen3.5-4B"):
     generator = pipeline(
         "text-generation",
         model=model_name,
-        max_new_tokens=1000
+        max_new_tokens=max_tokens,
+        temperature=temperature,
+        top_p=top_p
     )
     return generator

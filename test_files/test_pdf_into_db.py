@@ -37,7 +37,7 @@ for c in chunks:
     print("Preview:", len(c["text"]), c["text"][:100])
 
 #DB_Manager
-db_file = "rag_db.sqlite"
+db_file = "../rag_db.sqlite"
 sqlite_url = f"sqlite:///{db_file}"
 # initialize DB manager
 db_manager = DBManager(sqlite_url, embedding_model="intfloat/multilingual-e5-small")

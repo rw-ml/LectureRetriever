@@ -1,6 +1,8 @@
 import pdfplumber
 import typing
 from pathlib import Path
+from fastapi import UploadFile
+import os
 
 def load_pdf(file_path: str):
     pages = []
@@ -31,3 +33,19 @@ def load_multiple_pdfs(file_paths: list[str]):
         pages = load_pdf(file_path)
         documents.extend(pages)
     return documents
+
+import tempfile
+import shutil
+
+def handle_upload(file: UploadFile, delete_file: bool = False):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = tmp.name
+
+    pages = load_pdf(tmp_path)
+    if delete_file:
+        try:
+            os.remove(tmp_path)
+        except Exception as e:
+            print(f"Warning: could not delete temp file {tmp_path}: {e}")
+    return pages
