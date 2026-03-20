@@ -45,7 +45,7 @@ def get_generator(model_name="Qwen/Qwen3.5-4B", quantize_4bit=True, device="cuda
     return Generator(model_name=model_name, quantize_4bit=quantize_4bit, device=device)
 
 
-def get_generator_old(model_name: str = "Qwen/Qwen3.5-4B", temperature: float = 0., top_p: float=1., max_tokens: int=5000):
+def get_generator_old(model_name: str = "Qwen/Qwen3.5-4B", top_p: float=1., max_tokens: int=5000):
     '''
 
     :param model_name: llm for generation
@@ -59,7 +59,6 @@ def get_generator_old(model_name: str = "Qwen/Qwen3.5-4B", temperature: float = 
         "text-generation",
         model=model_name,
         max_new_tokens=max_tokens,
-        temperature=temperature,
         top_p=top_p
     )
     return generator

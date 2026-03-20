@@ -59,10 +59,10 @@ class AppService:
             embedding_model: str="intfloat/multilingual-e5-small",
             generator_model: str="Qwen/Qwen3.5-2B",
             reranker_model: str="cross-encoder/ms-marco-MiniLM-L-6-v2",
-            db_path: str = "data/rag_db.sqlite"
+            db_path: str = "app/data/rag_db.sqlite"
     ):
         # -- db insertion -----------------------------
-        sqlite_url = f"sqlite:///{db_path}"
+        sqlite_url = f"sqlite:////{db_path}"
         self.db_manager = DBManager(sqlite_url, embedding_model=embedding_model)
         # create tables (will create rag_db.sqlite automatically)
         self.db_manager.init_db()

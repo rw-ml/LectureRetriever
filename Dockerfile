@@ -12,7 +12,8 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 RUN pip3 install --no-cache-dir -r requirements.txt
-
+#directory for database
+RUN mkdir -p /app/data
 # Copy application code
 COPY . .
 
@@ -20,4 +21,4 @@ COPY . .
 EXPOSE 8000
 
 # Run the API
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python3", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
