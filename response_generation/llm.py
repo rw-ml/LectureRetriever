@@ -1,64 +1,40 @@
-# generator.py
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, pipeline
+import requests
+import json
 
-class Generator:
-    def __init__(self, model_name: str, quantize_4bit: bool = True, device: str = "cuda"):
+
+class VLLMClient:
+    def __init__(
+        self,
+        base_url: str,
+        model_name="Qwen/Qwen3.5-2B",
+        max_tokens=512,
+        temperature=0.0,
+    ):
+        self.base_url = base_url
         self.model_name = model_name
+        self.max_tokens = max_tokens
+        self.temperature = temperature
 
-        # 4-bit quantization config
-        self.bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_use_double_quant=True
-        ) if quantize_4bit else None
+    def stream_request(self, messages):
+        payload = {
+            "model": self.model_name,
+            "messages": messages,
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+            "stream": True,
+        }
+        with requests.post(self.base_url, json=payload, stream=True) as response:
+            for line in response.iter_lines():
+                if not line:
+                    continue
 
-        # Load tokenizer and model
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            quantization_config=self.bnb_config,
-            device_map="auto" if device == "cuda" else None
-        )
+                decoded = line.decode("utf-8")
+                if decoded.startswith("data: "):
+                    data = decoded[len("data: "):]
+                    if data == "[DONE]":
+                        break
 
-        # HF text-generation pipeline
-        self.generator = pipeline(
-            task="text-generation",
-            model=self.model,
-            tokenizer=self.tokenizer,
-            device=0 if device == "cuda" else -1
-        )
-
-    def generate(self, prompt: str, max_new_tokens: int = 512, temperature: float = 0.):
-        outputs = self.generator(
-            prompt,
-            max_new_tokens=max_new_tokens,
-            temperature=temperature,
-            do_sample=True,
-            top_p=0.95,
-            repetition_penalty=1.1
-        )
-        return outputs[0]["generated_text"]
-
-
-# helper to match your old get_generator call
-def get_generator(model_name="Qwen/Qwen3.5-4B", quantize_4bit=True, device="cuda"):
-    return Generator(model_name=model_name, quantize_4bit=quantize_4bit, device=device)
-
-
-def get_generator_old(model_name: str = "Qwen/Qwen3.5-4B", top_p: float=1., max_tokens: int=5000):
-    '''
-
-    :param model_name: llm for generation
-        (- "Qwen/Qwen3.5-9B" --> likely too large)
-        - "Qwen/Qwen3.5-4B" --> high quality for small models -> 3-4GB RAM
-        - "Qwen/Qwen3.5-2B" --> smaller, balanced
-        - "Qwen/Qwen3.5-0.8B" --> fast
-    :return:
-    '''
-    generator = pipeline(
-        "text-generation",
-        model=model_name,
-        max_new_tokens=max_tokens,
-        top_p=top_p
-    )
-    return generator
+                    chunk = json.loads(data)
+                    delta = chunk["choices"][0]["delta"]
+                    if "content" in delta:
+                        yield delta["content"]

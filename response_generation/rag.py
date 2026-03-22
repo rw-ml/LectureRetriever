@@ -16,7 +16,7 @@ def clean_llm_output(output: str) -> str:
 
     return output.strip()
 
-def build_context(results, max_chars=1e5):
+def build_context(results, max_chars=1.5e5):
     """
     Combine retrieved chunks into a prompt context.
     """
@@ -39,13 +39,24 @@ def build_context(results, max_chars=1e5):
     return text
 
 
-def build_prompt(context, question):
-    prompt = f"""
+def get_system_prompt():
+    return """
 You are a teaching assistant answering questions about a lecture.
 
-Only use the provided lecture context.
-If the answer is not contained in the context, say you do not know.
+Use only the provided lecture context to answer the question. 
+Base your answer strictly on the information in the context and do not rely on external knowledge.
 
+Synthesize information across the context when needed.
+
+Give a structured explanation with clear sections and, if helpful, bullet points.
+
+Be concise but complete. Avoid unnecessary repetition.
+
+If the answer cannot be derived from the provided context, explicitly say: "I do not know based on the provided context."
+"""
+
+def build_user_prompt(context, question):
+    return f"""
 Context:
 {context}
 
@@ -54,22 +65,27 @@ Question:
 
 Answer:
 """
+
+def build_prompt(context, question):
+    prompt = get_system_prompt() + build_user_prompt(context, question)
     return prompt
 
-
-
 class RAGPipeline:
-    def __init__(self, retriever, generator):
+    def __init__(self, retriever, vllm_client):
         self.retriever = retriever
-        self.generator = generator
+        self.vllm_client = vllm_client
 
-    def ask(self, question, lecture_name):
-        # stage 1: semantic retrieval
+    def ask_stream(self, question, lecture_name):
+        '''
+            RAG (streamed) response generation with vLLM backend
+        '''
+        # stage 1: retrieval
         candidates = self.retriever.retrieve(
             query=question,
             lecture_name=lecture_name,
             top_k=30
         )
+
         # stage 2: reranking
         results = self.retriever.rerank(
             query=question,
@@ -77,19 +93,26 @@ class RAGPipeline:
             top_k=5
         )
 
-        # build context
         context = build_context(results)
+        messages = [
+            {
+                "role": "system",
+                "content": get_system_prompt()
+            },
+            {
+                "role": "user",
+                "content": build_user_prompt(context, question)
+            }
+        ]
 
-        # build prompt
-        prompt = build_prompt(context, question)
+        # stream tokens
+        def stream():
+            full_answer = ""
+            for token in self.vllm_client.stream_request(messages):
+                full_answer += token
+                yield token
 
-        # generate answer
-        output = self.generator(
-            prompt,
-            do_sample=False
-        )
-        answer = output[0]["generated_text"]
-        answer = clean_llm_output(answer)
-
-        sources = build_sources(results, lecture_name)
-        return answer + "\n\n" + sources
+            # after generation append sources
+            sources = build_sources(results, lecture_name)
+            yield "\n\n" + sources
+        return stream()

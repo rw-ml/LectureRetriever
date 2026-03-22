@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Generator
 from pdf_preprocessing.clean_text import clean_text_file
 from pdf_preprocessing.pdf_loader import handle_upload
 from chunking.chunking import RollingSemanticChunker, chunk_document
@@ -7,11 +7,11 @@ from database.db import DBManager
 
 from response_generation.retriever import Retriever
 from response_generation.rag import RAGPipeline
-from response_generation.llm import get_generator, get_generator_old
-
+from response_generation.llm import VLLMClient #get_generator, get_generator_old
+from api.vllm_manager import VLLMManager
 
 class IngestionService:
-    def __init__(self, db_manager: DBManager, embedding_model: str="intfloat/multilingual-e5-small"):
+    def __init__(self, db_manager: DBManager):
         self.db_manager = db_manager
         # preprocessing
         self.chunker = RollingSemanticChunker()
@@ -34,24 +34,43 @@ class QAService:
             db_manager: DBManager,
             embedding_model: str="intfloat/multilingual-e5-small",
             generator_model: str="Qwen/Qwen3.5-2B",
-            reranker_model: str="intfloat/multilingual-e5-small"
+            reranker_model: str="intfloat/multilingual-e5-small",
+            quantization=None,
+            max_tokens=512,
+            temperature=0.0,
+            max_model_len=4096
     ):
 
         self.db_manager = db_manager
-        self.generator = get_generator_old(generator_model)
+
+        self.vllm_manager = VLLMManager(
+            model_name=generator_model,
+            port=30001,
+            gpu_memory_utilization=0.7,
+            max_model_len=max_model_len,
+            quantization=quantization,
+        )
+        self.vllm_manager.start()
+
+        self.vLLM_client = VLLMClient(
+            base_url=self.vllm_manager.get_url(),
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        # self.generator = # get_generator_old(generator_model)
         retriever = Retriever(
             self.db_manager,
             embedding_model=embedding_model,
             reranker=reranker_model
         )
-        self.rag = RAGPipeline(retriever, self.generator)
-
-    def generate_response(self, question: str, lecture_name: str):
-        answer = self.rag.ask(
+        self.rag = RAGPipeline(retriever, self.vLLM_client)
+    def generate_response(self, question: str, lecture_name: str) -> Generator[str, None, None]:
+        answer = self.rag.ask_stream(
             question,
             lecture_name=lecture_name
         )
         return answer
+
 
 class AppService:
     def __init__(
@@ -67,7 +86,7 @@ class AppService:
         # create tables (will create rag_db.sqlite automatically)
         self.db_manager.init_db()
 
-        self.ingester = IngestionService(self.db_manager, embedding_model=embedding_model)
+        self.ingester = IngestionService(self.db_manager)
         self.response_generator = QAService(self.db_manager,
             embedding_model=embedding_model,
             reranker_model=reranker_model,

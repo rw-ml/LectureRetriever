@@ -1,10 +1,13 @@
 pdfplumber
 sentence-transformers
-#json
 sqlalchemy
-# psycopg2-binary
 pgvector
 transformers
 fastapi
 uvicorn[standard]
 python-multipart
+requests
+pydantic
+torch
+accelerate
+docker

@@ -1,4 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, Form, Request
+from fastapi.responses import StreamingResponse
+
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
 
@@ -45,16 +47,16 @@ class AskRequest(BaseModel):
     question: str
     lecture_name: str
 
-@app.post("/ask")
-def ask(req: AskRequest, request: Request):
-    service = get_service(request)
-    answer = service.generate_response(
-        req.question,
-        req.lecture_name
-    )
-    return {"answer": answer}
-
 @app.get("/lectures")
 def list_lectures(request: Request):
     service = get_service(request)
     return service.list_lectures()
+
+@app.post("/ask_stream")
+def ask_stream(req: AskRequest, request: Request):
+    service = get_service(request)
+
+    return StreamingResponse(
+        service.generate_response(req.question, req.lecture_name),
+        media_type="text/plain"
+    )
