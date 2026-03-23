@@ -43,6 +43,15 @@ The goal is not just answering questions, but enabling **traceable learning**.
   - Runs fully locally (no external APIs required)
 
 ---
+## Engineering Highlights
+
+- End-to-end RAG pipeline (ingestion → retrieval → generation)
+- Local LLM serving with vLLM
+- Semantic retrieval + reranking pipeline
+- Streaming API with FastAPI
+- Containerized deployment with Docker
+
+---
 
 ## Why vLLM: Performance
 
@@ -55,7 +64,7 @@ Comparison to standard Transformers inference with a RTX 3080:
 
 
 
-- vLLM introduces a higher startup cost due to model compilation
+- **Drawback:** vLLM introduces a higher startup cost and time due to model compilation
 - After warmup, response latency is significantly reduced
 - Streaming enables immediate feedback to the user
 
