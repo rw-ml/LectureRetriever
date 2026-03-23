@@ -1,13 +1,13 @@
 # database connection layer
 
 from sqlalchemy import create_engine, text, Column, Text
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import sessionmaker
 from pgvector.sqlalchemy import Vector
 
 from general_tools.db_name_sanitizer import clean_name
 
 from database.base import Base
-from database.models import Chunk, Document      #import after Base as it uses that too
+from database.models import Chunk, Document, Lecture  #import after Base as it uses that too
 
 
 class DBManager:
@@ -51,4 +51,40 @@ class DBManager:
                     WHERE embedding_model = '{self.embedding_model}'
                 """))
                 conn.commit()
+
+    def delete_lecture(self, lecture_name: str):
+        session = self.get_session()
+        lecture = (
+            session.query(Lecture)
+            .filter(Lecture.name == lecture_name)
+            .first()
+        )
+        if not lecture:
+            session.close()
+            return False
+
+        session.delete(lecture)
+        session.commit()
+        session.close()
+        return True
+
+    def delete_document(self, document_name: str, lecture_name: str):
+        session = self.get_session()
+        document = (
+            session.query(Document)
+            .join(Lecture)
+            .filter(
+                Document.title == document_name,
+                Lecture.name == lecture_name
+            )
+            .first()
+        )
+        if not document:
+            session.close()
+            return False
+
+        session.delete(document)
+        session.commit()
+        session.close()
+        return True
 

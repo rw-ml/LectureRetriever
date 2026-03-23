@@ -1,7 +1,7 @@
-from response_generation.retriever import Retriever
-from response_generation.rag import RAGPipeline
-from response_generation.llm import get_generator, get_generator_old
-from database.db import DBManager
+from backend.response_generation.retriever import Retriever
+from backend.response_generation.rag import RAGPipeline
+from backend.response_generation.llm import get_generator, get_generator_old
+from backend.database.db import DBManager
 
 
 

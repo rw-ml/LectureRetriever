@@ -16,12 +16,12 @@ RUN --mount=type=cache,target=/root/.cache/pip pip3 install --upgrade pip && pip
 
 # Copy source code
 COPY main.py .
-COPY api/ ./api/
-COPY chunking/ ./chunking/
-COPY database/ ./database/
-COPY general_tools/ ./general_tools/
-COPY pdf_preprocessing/ ./pdf_preprocessing/
-COPY response_generation/ ./response_generation/
+COPY api ./api/
+COPY chunking ./chunking/
+COPY database ./database/
+COPY general_tools ./general_tools/
+COPY pdf_preprocessing ./pdf_preprocessing/
+COPY response_generation ./response_generation/
 
 
 #directory for database

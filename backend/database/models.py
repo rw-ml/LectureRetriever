@@ -20,8 +20,8 @@ class Lecture(Base):
     name = Column(String, unique=True, nullable=False)
 
     # relationship to chunks
-    chunks = relationship("Chunk", back_populates="lecture")
-    documents = relationship("Document", back_populates="lecture")
+    chunks = relationship("Chunk", back_populates="lecture", cascade="all, delete-orphan")
+    documents = relationship("Document", back_populates="lecture", cascade="all, delete-orphan")
 
 class Document(Base):
     '''
@@ -37,7 +37,7 @@ class Document(Base):
     source = Column(String)
 
     #relationship
-    chunks = relationship("Chunk", back_populates="document")
+    chunks = relationship("Chunk", back_populates="document", cascade="all, delete-orphan")
     lecture_id = Column(Integer, ForeignKey("lectures.id"))
     lecture = relationship("Lecture", back_populates="documents")
 

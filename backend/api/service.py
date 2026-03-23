@@ -1,7 +1,9 @@
 from typing import Optional, Generator
+from huggingface_hub import snapshot_download
+
 from pdf_preprocessing.clean_text import clean_text_file
 from pdf_preprocessing.pdf_loader import handle_upload
-from chunking.chunking import RollingSemanticChunker, chunk_document
+from chunking.chunking import RollingSemanticChunker
 from database.insert_chunks import DatasetInserter
 from database.db import DBManager
 
@@ -42,7 +44,11 @@ class QAService:
     ):
 
         self.db_manager = db_manager
+        snapshot_download(
+            repo_id="Qwen/Qwen3.5-2B"
+        )
 
+        print("vLLM Model Startup. This can take a few minutes...")
         self.vllm_manager = VLLMManager(
             model_name=generator_model,
             port=30001,
@@ -70,6 +76,9 @@ class QAService:
             lecture_name=lecture_name
         )
         return answer
+
+    def shutdown(self):
+        self.vllm_manager.stop()
 
 
 class AppService:
@@ -106,3 +115,28 @@ class AppService:
             return [l.name for l in lectures]
         finally:
             session.close()
+
+    def list_documents_in_lecture(self, lecture_name: str):
+        session = self.db_manager.get_session()
+        try:
+            from database.models import Document, Lecture
+
+            documents = (
+                session.query(Document)
+                .join(Lecture)
+                .filter(Lecture.name == lecture_name)
+                .all()
+            )
+
+            return [{"id": d.id, "title": d.title} for d in documents]
+        finally:
+            session.close()
+
+    def delete_lecture(self, lecture_name: str):
+        return self.db_manager.delete_lecture(lecture_name)
+
+    def delete_document(self, document_name: str, lecture_name: str):
+        return self.db_manager.delete_document(document_name,lecture_name)
+
+    def shutdown(self):
+        self.response_generator.shutdown()

@@ -1,8 +1,8 @@
-from pdf_preprocessing.clean_text import clean_text_file
-from pdf_preprocessing.pdf_loader import load_pdf
-from chunking.chunking import RollingSemanticChunker, chunk_document
-from database.insert_chunks import DatasetInserter
-from database.db import DBManager
+from backend.pdf_preprocessing.clean_text import clean_text_file
+from backend.pdf_preprocessing.pdf_loader import load_pdf
+from backend.chunking.chunking import RollingSemanticChunker, chunk_document
+from backend.database.insert_chunks import DatasetInserter
+from backend.database.db import DBManager
 
 example_pdf = r"C:\Users\robin\Downloads\SWT2_Lecture.pdf"
 

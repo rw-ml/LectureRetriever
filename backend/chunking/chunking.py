@@ -1,8 +1,6 @@
 from sentence_transformers import SentenceTransformer
 import numpy as np
-#from chunking.helpers_chunking import MultiCentroidManager
 
-#from sklearn.cluster import AgglomerativeClustering
 
 def detect_document_type(document, slide_threshold=800):
     """

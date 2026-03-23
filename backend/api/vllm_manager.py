@@ -62,10 +62,10 @@ class VLLMManager:
             ],
         )
 
-    def wait_until_ready(self, timeout: int = 300):
+    def wait_until_ready(self, timeout: int = 900):
         url = f"http://{self.container_name}:{self.port}/v1/models"
 
-        for _ in range(timeout):
+        for i in range(timeout):
             try:
                 r = requests.get(url)
                 if r.status_code == 200:
@@ -73,6 +73,8 @@ class VLLMManager:
             except Exception:
                 pass
             time.sleep(1)
+            if i % 10 == 0:
+                print(f"[VLLM] Still waiting... ({i}s)")
 
         raise RuntimeError("vLLM server did not become ready in time.")
 
@@ -84,3 +86,12 @@ class VLLMManager:
         self.connect_api_container()
         self.start_container()
         self.wait_until_ready()
+
+    def stop(self):
+        try:
+            container = self.client.containers.get(self.container_name)
+            print("[VLLM] Stopping container...")
+            container.stop()
+            container.remove()
+        except docker.errors.NotFound:
+            pass
