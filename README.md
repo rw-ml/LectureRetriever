@@ -1,7 +1,8 @@
 #  Lecture RAG System (Streaming, Source-Grounded QA)
 
-A local Retrieval-Augmented Generation (RAG) system for **question answering over lecture slides with verifiable sources**, powered by `vLLM`.
-Users can upload lecture PDFs and receive **structured, source-grounded answers** via fast streaming inference.
+A local RAG system for querying lecture slides and retrieving verifiable answers with explicit source references.
+
+Built for study workflows: users upload lecture PDFs and receive fast, source-grounded responses using semantic search and LLM inference with `vLLM`.
 
 > Focus: Fast, local, and verifiable knowledge retrieval for exam preparation and study workflows.
 
