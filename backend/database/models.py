@@ -1,6 +1,6 @@
 #defining database structure
 
-from sqlalchemy import Column, Integer, String, Text, ForeignKey
+from sqlalchemy import UniqueConstraint, Column, Integer, String, Text, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 
 import json
@@ -32,9 +32,12 @@ class Document(Base):
         source
     '''
     __tablename__ = "documents"
+    __table_args__ = (
+        UniqueConstraint("source", "title", name="uq_document_source_title"),
+    )
     id = Column(Integer, primary_key=True, index=True)
-    title = Column(String)
-    source = Column(String)
+    title = Column(String, nullable=False)
+    source = Column(String, nullable=False)
 
     #relationship
     chunks = relationship("Chunk", back_populates="document", cascade="all, delete-orphan")
@@ -56,12 +59,15 @@ class Chunk(Base):
     __tablename__ = "chunks"
     id = Column(Integer, primary_key=True, index=True)
     pages = Column(String)
-    text = Column(Text)
+    text = Column(Text, nullable=False)
 
     # embedding metadata --> allow filtering by model
     embedding_model = Column(String)
+    embedding_model_version = Column(String, nullable=True)
+    embedding_created_at = Column(DateTime, nullable=True)
+
     embedding_dimension = Column(Integer)
-    embedding = None  # set in DBManager
+    embedding = Column(Text, nullable=True)  # set in DBManager for postgres
     # relationship
     document_id = Column(Integer, ForeignKey("documents.id"))
     document = relationship("Document", back_populates="chunks")

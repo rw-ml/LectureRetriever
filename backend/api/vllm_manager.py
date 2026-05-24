@@ -19,6 +19,7 @@ class VLLMManager:
 
         self.client = docker.from_env()
         self.startup_kwargs = startup_kwargs
+
     def ensure_network(self):
         networks = self.client.networks.list(names=[self.network_name])
         if not networks:
@@ -44,10 +45,10 @@ class VLLMManager:
             pass
 
         full_command = ["serve", self.model_name, "--port", f"{self.port}"]
-
         for key, value in self.startup_kwargs.items():
             if value is not None:
                 full_command += [f"--{key}", f"{value}"]
+
         print(f"VLLM called with: '{full_command}'")
         self.client.containers.run(
             "vllm/vllm-openai",

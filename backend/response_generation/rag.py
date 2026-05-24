@@ -16,7 +16,7 @@ def clean_llm_output(output: str) -> str:
 
     return output.strip()
 
-def build_context(results, max_chars=1.5e5):
+def build_context(results, max_chars=2e4):
     """
     Combine retrieved chunks into a prompt context.
     """
@@ -27,15 +27,13 @@ def build_context(results, max_chars=1.5e5):
     for r in results:
         chunk_text = r["text"]
         pages = r["pages"]
-
         part = f"[Pages {pages}]\n{chunk_text}\n"
 
         if total_chars + len(part) > max_chars:
             break
 
-        text += chunk_text + "\n"
+        text += part + "\n"
         total_chars += len(part)
-
     return text
 
 
@@ -65,10 +63,6 @@ Question:
 
 Answer:
 """
-
-def build_prompt(context, question):
-    prompt = get_system_prompt() + build_user_prompt(context, question)
-    return prompt
 
 class RAGPipeline:
     def __init__(self, retriever, vllm_client):

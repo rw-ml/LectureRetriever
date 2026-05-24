@@ -45,21 +45,21 @@ class QAService:
 
         self.db_manager = db_manager
         snapshot_download(
-            repo_id="Qwen/Qwen3.5-2B"
+            repo_id=generator_model
         )
 
         print("vLLM Model Startup. This can take a few minutes...")
-        self.vllm_manager = VLLMManager(
+        self.model_server = VLLMManager(
             model_name=generator_model,
             port=30001,
             gpu_memory_utilization=0.7,
             max_model_len=max_model_len,
             quantization=quantization,
         )
-        self.vllm_manager.start()
+        self.model_server.start()
 
         self.vLLM_client = VLLMClient(
-            base_url=self.vllm_manager.get_url(),
+            base_url=self.model_server.get_url(),
             max_tokens=max_tokens,
             temperature=temperature,
         )
@@ -70,6 +70,7 @@ class QAService:
             reranker=reranker_model
         )
         self.rag = RAGPipeline(retriever, self.vLLM_client)
+
     def generate_response(self, question: str, lecture_name: str) -> Generator[str, None, None]:
         answer = self.rag.ask_stream(
             question,
@@ -78,7 +79,7 @@ class QAService:
         return answer
 
     def shutdown(self):
-        self.vllm_manager.stop()
+        self.model_server.stop()
 
 
 class AppService:

@@ -3,7 +3,7 @@
 from sentence_transformers import SentenceTransformer
 from database.models import Document, Chunk, Lecture
 from sqlalchemy.orm import Session
-
+from datetime import datetime
 
 class DatasetInserter:
     def __init__(self, db_manager):
@@ -19,11 +19,11 @@ class DatasetInserter:
         if not lecture:
             lecture = Lecture(name=lecture_name)
             db.add(lecture)
-            db.commit()
+            db.flush() #write temporary in case sth goes wrong
             db.refresh(lecture)
         return lecture
 
-    def add(self, chunks, lecture_name: str=None, document_title:str=None):
+    def add(self, chunks: list[dict], lecture_name: str, document_title:str=None):
         """
         Insert a list of chunks into the database.
 
@@ -44,21 +44,32 @@ class DatasetInserter:
             source = chunks[0].get("source", "unknown")
 
             # ---------- lecture ----------
-            lecture_id = None
-            if lecture_name:
-                lecture = self._get_or_create_lecture(db, lecture_name)
-                lecture_id = lecture.id
-            else:
-                print("Warning Lecture Name not Found")
+            lecture = self._get_or_create_lecture(db, lecture_name)
+            lecture_id = lecture.id
+            title = document_title if document_title else chunks[0].get("title", "Untitled")
+
+            # ---------- duplicate check (application level) ----------
+            existing_doc = (
+                db.query(Document)
+                .filter(
+                    Document.source == source,
+                    Document.title == title
+                )
+                .first()
+            )
+
+            if existing_doc:
+                print("Document already exists. Skipping insertion.")
+                return #finally still executed after return
 
             # ---------- create document entry ----------
             document = Document(
                 source=source,
-                lecture_id=self._get_or_create_lecture(db, lecture_name).id,
-                title=document_title if document_title else chunks[0].get("title", "Untitled")
+                lecture_id=lecture_id,
+                title= title
             )
             db.add(document)
-            db.commit()
+            db.flush()
             db.refresh(document)
             document_id = document.id
 
@@ -78,12 +89,16 @@ class DatasetInserter:
                     text=chunk["text"],
                     embedding_model=self.embedding_model,
                     embedding_dimension=len(embedding),
-                    embedding=embedding.tolist()
+                    embedding_model_version="v1",
+                    embedding_created_at=datetime.utcnow()
                 )
                 db_chunk.set_embedding(embedding)
                 db.add(db_chunk)
 
             db.commit()
+        except Exception:
+            db.rollback()
+            raise
 
         finally:
             db.close()

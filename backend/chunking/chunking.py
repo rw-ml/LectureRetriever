@@ -132,8 +132,10 @@ class RollingSemanticChunker:
                 similarities.append(sim)
                 mean = np.mean(similarities)
                 std = np.std(similarities)
-
-                topic_change = sim < (mean - self.deviation_factor * std)
+                if std < 0.01:
+                    topic_change = False
+                else:
+                    topic_change = sim < (mean - self.deviation_factor * std)
             else:
                 topic_change = False
 
