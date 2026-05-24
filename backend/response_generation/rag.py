@@ -99,11 +99,10 @@ class RAGPipeline:
             }
         ]
 
+
         # stream tokens
         def stream():
-            full_answer = ""
             for token in self.vllm_client.stream_request(messages):
-                full_answer += token
                 yield token
 
             # after generation append sources

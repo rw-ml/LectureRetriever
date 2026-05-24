@@ -10,6 +10,7 @@ from database.db import DBManager
 from response_generation.retriever import Retriever
 from response_generation.rag import RAGPipeline
 from response_generation.llm import VLLMClient #get_generator, get_generator_old
+from database.models import Lecture
 from api.vllm_manager import VLLMManager
 
 class IngestionService:
@@ -24,11 +25,12 @@ class IngestionService:
         txt_dict = handle_upload(pdf_file, not store_file)
         cleaned_txt_dict = clean_text_file(txt_dict)
         chunks = self.chunker.chunk_document(cleaned_txt_dict)
-        self.dataset_inserter.add(
+        success = self.dataset_inserter.add(
             chunks,
             lecture_name=lecture_name,
             document_title=document_title if document_title else pdf_file.filename
         )
+        return success
 
 class QAService:
     def __init__(
@@ -37,24 +39,21 @@ class QAService:
             embedding_model: str="intfloat/multilingual-e5-small",
             generator_model: str="Qwen/Qwen3.5-2B",
             reranker_model: str="intfloat/multilingual-e5-small",
+            gpu_mem_limit=0.95,
             quantization=None,
-            max_tokens=512,
+            max_tokens=8192,
             temperature=0.0,
-            max_model_len=4096
+            max_model_len=16384
     ):
 
         self.db_manager = db_manager
-        snapshot_download(
-            repo_id=generator_model
-        )
-
-        print("vLLM Model Startup. This can take a few minutes...")
+        print("vLLM Model Startup. This can take a moment...")
         self.model_server = VLLMManager(
             model_name=generator_model,
             port=30001,
-            gpu_memory_utilization=0.7,
-            max_model_len=max_model_len,
+            gpu_memory_utilization=gpu_mem_limit,
             quantization=quantization,
+            max_model_len = max_model_len
         )
         self.model_server.start()
 
@@ -63,7 +62,8 @@ class QAService:
             max_tokens=max_tokens,
             temperature=temperature,
         )
-        # self.generator = # get_generator_old(generator_model)
+
+        print("Initialization of Embedding and Reranking Model...")
         retriever = Retriever(
             self.db_manager,
             embedding_model=embedding_model,
@@ -72,11 +72,16 @@ class QAService:
         self.rag = RAGPipeline(retriever, self.vLLM_client)
 
     def generate_response(self, question: str, lecture_name: str) -> Generator[str, None, None]:
-        answer = self.rag.ask_stream(
-            question,
-            lecture_name=lecture_name
-        )
-        return answer
+        session = self.db_manager.get_session()
+        try:
+            lecture = session.query(Lecture).filter(
+                Lecture.name == lecture_name
+            ).first()
+            if lecture is None:
+                return iter(["Lecture does not exist"])
+            return self.rag.ask_stream(question, lecture_name)
+        finally:
+            session.close()
 
     def shutdown(self):
         self.model_server.stop()
@@ -88,7 +93,12 @@ class AppService:
             embedding_model: str="intfloat/multilingual-e5-small",
             generator_model: str="Qwen/Qwen3.5-2B",
             reranker_model: str="cross-encoder/ms-marco-MiniLM-L-6-v2",
-            db_path: str = "app/data/rag_db.sqlite"
+            db_path: str = "app/data/rag_db.sqlite",
+            quantization=None,
+            gpu_mem_limit=0.95,
+            max_tokens=4096,
+            temperature=0.0,
+            max_model_len=8192
     ):
         # -- db insertion -----------------------------
         sqlite_url = f"sqlite:////{db_path}"
@@ -97,13 +107,19 @@ class AppService:
         self.db_manager.init_db()
 
         self.ingester = IngestionService(self.db_manager)
-        self.response_generator = QAService(self.db_manager,
+        self.response_generator = QAService(
+            self.db_manager,
             embedding_model=embedding_model,
             reranker_model=reranker_model,
-            generator_model=generator_model
+            generator_model=generator_model,
+            gpu_mem_limit=gpu_mem_limit,
+            quantization=quantization,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            max_model_len=max_model_len
         )
     def add_slide_set(self, pdf_file, lecture_name, document_title: Optional[str]=None, store_file:bool=False):
-        self.ingester.add_slide_set(pdf_file, lecture_name, document_title, store_file)
+        return self.ingester.add_slide_set(pdf_file, lecture_name, document_title, store_file)
 
     def generate_response(self, question: str, lecture_name: str):
         return self.response_generator.generate_response(question, lecture_name)

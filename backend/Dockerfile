@@ -1,5 +1,7 @@
 FROM nvidia/cuda:12.9.0-runtime-ubuntu22.04
 
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
 # Install system dependencies
@@ -19,7 +21,6 @@ COPY main.py .
 COPY api ./api/
 COPY chunking ./chunking/
 COPY database ./database/
-COPY general_tools ./general_tools/
 COPY pdf_preprocessing ./pdf_preprocessing/
 COPY response_generation ./response_generation/
 

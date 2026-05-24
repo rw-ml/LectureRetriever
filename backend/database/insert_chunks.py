@@ -4,6 +4,7 @@ from sentence_transformers import SentenceTransformer
 from database.models import Document, Chunk, Lecture
 from sqlalchemy.orm import Session
 from datetime import datetime
+from sqlalchemy.exc import IntegrityError
 
 class DatasetInserter:
     def __init__(self, db_manager):
@@ -23,7 +24,7 @@ class DatasetInserter:
             db.refresh(lecture)
         return lecture
 
-    def add(self, chunks: list[dict], lecture_name: str, document_title:str=None):
+    def add(self, chunks: list[dict], lecture_name: str, document_title:str=None) -> bool:
         """
         Insert a list of chunks into the database.
 
@@ -34,11 +35,12 @@ class DatasetInserter:
             "text": str,
             "source": str
         }
+        -> return new_entry_added: boolean
         """
         db = self.db.get_session()
         try:
             if not chunks:
-                return
+                return False
 
             # Use the source from the first chunk
             source = chunks[0].get("source", "unknown")
@@ -48,19 +50,16 @@ class DatasetInserter:
             lecture_id = lecture.id
             title = document_title if document_title else chunks[0].get("title", "Untitled")
 
-            # ---------- duplicate check (application level) ----------
+            # duplicate check (application level) -> skip not needed embeddings
             existing_doc = (
                 db.query(Document)
-                .filter(
-                    Document.source == source,
-                    Document.title == title
-                )
+                .filter(Document.lecture_id == lecture.id, Document.title == title)
                 .first()
             )
 
             if existing_doc:
                 print("Document already exists. Skipping insertion.")
-                return #finally still executed after return
+                return False #finally still executed after return
 
             # ---------- create document entry ----------
             document = Document(
@@ -96,9 +95,12 @@ class DatasetInserter:
                 db.add(db_chunk)
 
             db.commit()
-        except Exception:
+            return True
+
+        except IntegrityError:
             db.rollback()
-            raise
+            print("Duplicate detected (DB constraint). Skipping.")
+            return False
 
         finally:
             db.close()

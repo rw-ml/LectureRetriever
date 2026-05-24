@@ -1,7 +1,7 @@
 import docker
 import time
 import requests
-
+import threading
 
 class VLLMManager:
     def __init__(
@@ -29,17 +29,20 @@ class VLLMManager:
         try:
             network = self.client.networks.get(self.network_name)
             network.connect("lecture-rag-api")
-        except docker.errors.APIError:
-            # already connected → ignore
-            pass
+        except docker.errors.APIError as e:
+            if "already exists" in str(e):
+                pass  #already connected
+            else:
+                print("You need to run your docker container with '--name lecture-rag-api'")
+                raise
 
     def start_container(self):
         try:
-            container = self.client.containers.get(self.container_name)
-            if container.status == "running":
+            self.container = self.client.containers.get(self.container_name)
+            if self.container.status == "running":
                 return
             else:
-                container.start()
+                self.container.start()
                 return
         except docker.errors.NotFound:
             pass
@@ -50,7 +53,7 @@ class VLLMManager:
                 full_command += [f"--{key}", f"{value}"]
 
         print(f"VLLM called with: '{full_command}'")
-        self.client.containers.run(
+        self.container = self.client.containers.run(
             "vllm/vllm-openai",
             name=self.container_name,
             entrypoint=["vllm"],
@@ -61,23 +64,43 @@ class VLLMManager:
             device_requests=[
                 docker.types.DeviceRequest(count=-1, capabilities=[['gpu']])
             ],
+            volumes={
+                "hf_cache": {
+                    "bind": "/root/.cache/huggingface",
+                    "mode": "rw"
+                },
+                "vllm_cache": {
+                    "bind": "/root/.cache/vllm",
+                    "mode": "rw"
+                }
+            }
         )
 
     def wait_until_ready(self, timeout: int = 900):
-        url = f"http://{self.container_name}:{self.port}/v1/models"
+        url = f"http://{self.container_name}:{self.port}/health"
 
         for i in range(timeout):
             try:
                 r = requests.get(url)
                 if r.status_code == 200:
+                    print("vLLM ready", flush=True)
                     return
-            except Exception:
+            except:
                 pass
             time.sleep(1)
-            if i % 10 == 0:
-                print(f"[VLLM] Still waiting... ({i}s)")
-
         raise RuntimeError("vLLM server did not become ready in time.")
+
+    def stream_startup_logs(self, stop_event: threading.Event):
+        try:
+            since_start = time.time()
+            for line in self.container.logs(stream=True,follow=True, since=since_start):
+                if stop_event.is_set():
+                    break
+                decoded = line.decode("utf-8", errors="ignore").rstrip()
+                print(f"[vLLM] {decoded}", flush=True)
+
+        except Exception as e:
+            print(f"[vLLM log stream ended: {e}]", flush=True)
 
     def get_url(self):
         return f"http://{self.container_name}:{self.port}/v1/chat/completions"
@@ -86,13 +109,25 @@ class VLLMManager:
         self.ensure_network()
         self.connect_api_container()
         self.start_container()
-        self.wait_until_ready()
+
+        stop_event = threading.Event()
+        log_thread = threading.Thread(
+            target=self.stream_startup_logs,
+            args=(stop_event,),
+            daemon=True
+        )
+        log_thread.start()
+        try:
+            self.wait_until_ready()
+        finally:
+            stop_event.set()  # signals the log thread to exit
+            log_thread.join(timeout=5)
 
     def stop(self):
         try:
-            container = self.client.containers.get(self.container_name)
+            self.container = self.client.containers.get(self.container_name)
             print("[VLLM] Stopping container...")
-            container.stop()
-            container.remove()
+            self.container.stop()
+            self.container.remove()
         except docker.errors.NotFound:
             pass

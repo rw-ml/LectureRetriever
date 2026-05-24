@@ -1,7 +1,6 @@
 pdfplumber
 sentence-transformers
 sqlalchemy
-pgvector
 transformers
 fastapi
 uvicorn[standard]

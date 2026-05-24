@@ -3,6 +3,7 @@ from fastapi.responses import StreamingResponse
 import docker
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
+import os
 
 from api.service import AppService
 
@@ -11,10 +12,16 @@ from api.service import AppService
 async def lifespan(app: FastAPI):
     #startup
     app_service = AppService(
-        embedding_model="intfloat/multilingual-e5-small",
-        generator_model="Qwen/Qwen3.5-2B",
-        reranker_model="cross-encoder/ms-marco-MiniLM-L-6-v2",
+        embedding_model=os.getenv("EMBEDDING_MODEL","intfloat/multilingual-e5-small"),
+        generator_model=os.getenv("GENERATOR_MODEL", "Qwen/Qwen3.5-2B"),
+        reranker_model=os.getenv("RERANCER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2"),
+        quantization=os.getenv("QUANTIZATION", None),
+        max_tokens=os.getenv("MAX_TOKENS", 8192),
+        temperature=os.getenv("TEMPERATURE", 0.0),
+        max_model_len=os.getenv("MAX_MODEL_LEN", 16384),
+        gpu_mem_limit = os.getenv("GPU_MEMORY_UTILIZATION", 0.95)
     )
+
     app.state.service = app_service
     yield
     #shutdown
@@ -38,13 +45,16 @@ def upload_lecture(
     document_title: str = Form(None)
 ):
     service = get_service(request)
-    service.add_slide_set(
+    result = service.add_slide_set(
         pdf_file=file,
         lecture_name=lecture_name,
         document_title=document_title
     )
     if not document_title:
         document_title = file.filename
+
+    if not result:
+        return {"message": f"Document '{document_title}' already exists in '{lecture_name}', skipping."}
     return {"message": f"File {document_title} (part of the Lecture: '{lecture_name}') uploaded successfully"}
 
 class AskRequest(BaseModel):

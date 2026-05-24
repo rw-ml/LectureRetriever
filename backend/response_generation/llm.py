@@ -7,7 +7,7 @@ class VLLMClient:
         self,
         base_url: str,
         model_name="Qwen/Qwen3.5-2B",
-        max_tokens=512,
+        max_tokens=16384,
         temperature=0.0,
     ):
         self.base_url = base_url

@@ -33,7 +33,7 @@ class Document(Base):
     '''
     __tablename__ = "documents"
     __table_args__ = (
-        UniqueConstraint("source", "title", name="uq_document_source_title"),
+        UniqueConstraint("lecture_id", "title", name="uq_document_source_title"),
     )
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
@@ -67,7 +67,7 @@ class Chunk(Base):
     embedding_created_at = Column(DateTime, nullable=True)
 
     embedding_dimension = Column(Integer)
-    embedding = Column(Text, nullable=True)  # set in DBManager for postgres
+    embedding = Column(Text, nullable=True)
     # relationship
     document_id = Column(Integer, ForeignKey("documents.id"))
     document = relationship("Document", back_populates="chunks")
@@ -76,13 +76,7 @@ class Chunk(Base):
 
     # helper methods
     def set_embedding(self, vector: list | np.ndarray):
-        if hasattr(self.embedding, "bind_expression"):  # pgvector Column
-            self.embedding = vector
-        else:
-            self.embedding = json.dumps(vector.tolist() if hasattr(vector, "tolist") else vector)
+        self.embedding = json.dumps(vector.tolist() if hasattr(vector, "tolist") else vector)
 
     def get_embedding(self):
-        if hasattr(self.embedding, "bind_expression"):
-            return self.embedding
-        else:
-            return np.array(json.loads(self.embedding))
+        return np.array(json.loads(self.embedding))
