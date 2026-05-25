@@ -57,9 +57,9 @@ The goal is not just answering questions, but enabling **traceable learning**.
 
 Comparison to standard Transformers inference with a RTX 3080:
 
-| Metric              | Transformers | vLLM |
-|--------------------|--------------|------|
-| First response     | \>30s        | ~20s (initial warmup) |
+| Metric              | Transformers | vLLM                   |
+|--------------------|--------------|------------------------|
+| First response     | \>30s        | ~120s (initial warmup) |
 | Subsequent queries | \>30s        | near-instant streaming |
 
 
