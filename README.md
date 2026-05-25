@@ -1,8 +1,8 @@
-#  Lecture RAG System (Streaming, Source-Grounded QA)
+#  Lecture RAG System
+**Local Retrieval-Augmented QA for Lecture Slides**
 
-A local RAG system for querying lecture slides and retrieving verifiable answers with explicit source references.
-
-Built for study workflows: users upload lecture PDFs and receive fast, source-grounded responses using semantic search and LLM inference with `vLLM`.
+A local RAG system for querying lecture slides and retrieving verifiable answers with explicit source references.  
+Built for study workflows: Users upload lecture PDFs, which are processed into semantically searchable chunks for grounded question answering using local LLM inference with `vLLM`.
 
 > Focus: Fast, local, and verifiable knowledge retrieval for exam preparation and study workflows.
 
@@ -21,7 +21,7 @@ This project addresses that by combining:
 - **LLM-based summarization**
 - **explicit source grounding**
 
-The goal is not just answering questions, but enabling **traceable learning**.
+The system generates answers strictly from retrieved lecture chunks and appends explicit source references for verification.
 
 ---
 
@@ -39,7 +39,7 @@ The goal is not just answering questions, but enabling **traceable learning**.
 - **Streaming Responses (vLLM)**
   - Near-instant responses after initial warm-up
 
-- **Lightweight & Local**
+- **Local**
   - Runs fully locally (no external APIs required)
 
 ---
@@ -53,14 +53,32 @@ The goal is not just answering questions, but enabling **traceable learning**.
 
 ---
 
+## Project Structure
+
+```text
+lecture-rag/backend/
+├── api/                    # FastAPI endpoints and application startup
+├── database/               # SQLite models and ingestion logic
+├── chunking/               # Slide-aware chunking strategies
+├── pdf_preprocessing/      # PDF extraction and cleaning
+├── response_generation/    # Retrieval, reranking and RAG pipeline
+├── tests/                  # Python files for testing Ingestion Variants and Q&A
+
+├── main.py                 # FastAPI application entry point
+├── docker-compose.yml
+├── Dockerfile
+└── README.md
+```
+--- 
+
 ## Why vLLM: Performance
 
-Comparison to standard Transformers inference with a RTX 3080:
+Comparison against a local baseline using standard Hugging Face Transformers inference:
 
-| Metric              | Transformers | vLLM                   |
-|--------------------|--------------|------------------------|
-| First response     | \>30s        | ~120s (initial warmup) |
-| Subsequent queries | \>30s        | near-instant streaming |
+| Metric                   | Transformers | vLLM                   |
+|--------------------------|--------------|------------------------|
+| Startup + First response | \>30s        | ~120s (initial warmup) |
+| Subsequent queries       | \>30s        | ~1s                    |
 
 
 
@@ -77,33 +95,14 @@ This trade-off makes vLLM well-suited for interactive applications.
 
 ## Architecture Overview
 
-### Lecture Upload Pipeline
-pdf-Slides -> Text Extraction (pdfplumber) -> Cleaning & Structuring -> Slide-aware Chunking -> Embeddings (E5-small) -> SQLite Storage
-### Information Retrieval
-User Query -> Query Embedding -> Top-K Retrieval (K=5) -> Reranking (MiniLM) -> Generation: vLLM (Qwen3.5-2B) -> Streaming Response 
+The system is split into two independent pipelines sharing a central SQLite store.
+The upload pipeline ingests PDFs, cleans and chunks lecture slides, and stores
+embeddings. The query pipeline embeds the user's question, retrieves the top 30
+candidates, reranks to 5, and streams a grounded answer via vLLM.
 
+![Architecture overview](readme_docs/lecture_rag_architecture.svg)
 ---
 
-##  Data Processing Pipeline
-
-###  Input
-
-- PDF lecture slides (primary use case)
-- PDF text documents (supported, not extensively tested)
-
----
-
-### Text Cleaning
-
-Per-slide preprocessing includes:
-
-- Removal of:
-  - multiple spaces / newlines
-  - isolated numeric artifacts (from PDF parsing)
-- Heuristic title propagation:
-  - Handles slide continuations (e.g. *“continued”, “step”, “phase”*)
-
----
 
 ## Model & Design Decisions
 
@@ -113,9 +112,9 @@ The system uses `Qwen/Qwen3.5-2B`, chosen for:
 
 - Strong quality-to-size ratio
 - Compatibility with limited GPU resources (10GB VRAM)
-- Comparable performance to larger models (4B) in initial tests
 
-Smaller models (e.g. 0.8B) showed degraded generation quality.
+Smaller models (e.g. 0.8B) would further reduce resource requirements, 
+but showed noticeably degraded answer quality in initial tests.
 
 ---
 
@@ -136,31 +135,47 @@ Smaller models (e.g. 0.8B) showed degraded generation quality.
 
 ---
 
-### Chunking Strategy
+### Chunking & Preprocessing
 
-Slide-aware chunking was implemented to:
+#### Text Cleaning 
 
-- Preserve semantic context across slides
-- Avoid fragmentation of related content
-- Maintain retrieval relevance
+Before chunking, each PDF page is cleaned to reduce parsing artifacts:
+
+- Normalize whitespace and line breaks
+- Remove isolated numeric artifacts from PDF extraction
+- Heuristic title propagation for slide continuations
+  (e.g. “continued”, “step”, “phase”)
+
+Two chunking strategies are applied depending on the detected document type,
+selected automatically based on average characters per page.
+
+#### Slide documents 
+Use a fixed sliding window (`SlidesChunker`): groups of 3
+pages are merged into one chunk with a 1-page overlap, keeping related points
+on adjacent slides together.
+
+#### Text-heavy documents
+Fall back to `RollingSemanticChunker`, which attempts
+to split on topic shifts by comparing page embeddings against a rolling window
+of previous pages. In practice, lecture material tends to have high semantic
+similarity throughout, so boundary detection is imprecise — this path is a
+best-effort fallback rather than a robust solution.
 
 ## Getting Started
 
 ### Requirements
 
 - Docker
-- NVIDIA GPU, `cuda>=12.9.0` (recommended)
-- Python 3.10+
-- vLLM
+- NVIDIA GPU, `cuda>=12.9.0` 
 
 ---
 
 ### Run the backend
 
 #### First time / after changes
-Rebuilds the image and recreates the container:
+Rebuilds the image:
 ```bash
-docker compose up --build --force-recreate
+docker compose up --build
 ```
 
 #### Subsequent starts
@@ -170,17 +185,16 @@ docker compose up
 ```
 
 #### Clean restart (e.g. after schema changes)
-Stop and removed containers and network as well as volumes/the database (-v)
+Stop and remove containers and network as well as volumes/the database (-v)
 ```bash
 docker compose down -v
 docker compose up --build
 ```
 
 ## Usage Example
-- Limitation: Currently no Front-End
 
-### Very simple web Interface 
-- for example for Lecture Uploads
+### Quick start via Swagger UI
+- Useful for uploading lecture PDFs and testing endpoints manually.
 
 Open `http://localhost:8000/docs` in browser, select corresponding function. Downside: responses are not streamed.
 
@@ -193,7 +207,10 @@ curl -N -X POST http://localhost:8000/ask_stream \
 
 ## Limitations
 
-- Frontend currently not implemented
+- No dedicated frontend yet
 - PDF parsing quality depends on slide structure
-- SQLite may not scale to very large datasets
+- Exact similarity search over SQLite embeddings does not scale to large corpora 
+  - would require a vector database backend for larger deployments.
 - Small, not as powerful models for reranking and response generation 
+  - Response generation quality may degrade for non-English queries.
+- No formal retrieval evaluation benchmark (yet)
