@@ -2,6 +2,7 @@ import docker
 import time
 import requests
 import threading
+import socket
 
 class VLLMManager:
     def __init__(
@@ -25,10 +26,14 @@ class VLLMManager:
         if not networks:
             self.client.networks.create(self.network_name)
 
+    def _get_own_container_id(self) -> str:
+        return socket.gethostname()
+
     def connect_api_container(self):
         try:
+            own_id = self._get_own_container_id()
             network = self.client.networks.get(self.network_name)
-            network.connect("lecture-rag-api")
+            network.connect(own_id)
         except docker.errors.APIError as e:
             if "already exists" in str(e):
                 pass  #already connected
@@ -52,7 +57,7 @@ class VLLMManager:
             if value is not None:
                 full_command += [f"--{key}", f"{value}"]
 
-        print(f"VLLM called with: '{full_command}'")
+        print(f"vLLM called with: '{full_command}'")
         self.container = self.client.containers.run(
             "vllm/vllm-openai",
             name=self.container_name,

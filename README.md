@@ -157,11 +157,24 @@ Slide-aware chunking was implemented to:
 
 ### Run the backend
 
+#### First time / after changes
+Rebuilds the image and recreates the container:
 ```bash
-docker build -t lecture-rag-api .
-docker run --gpus all -p 8000:8000 lecture-rag-api
+docker compose up --build --force-recreate
 ```
 
+#### Subsequent starts
+If the image is already built and code hasn't changed:
+```bash
+docker compose up
+```
+
+#### Clean restart (e.g. after schema changes)
+Stop and removed containers and network as well as volumes/the database (-v)
+```bash
+docker compose down -v
+docker compose up --build
+```
 
 ## Usage Example
 - Limitation: Currently no Front-End

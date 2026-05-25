@@ -9,7 +9,7 @@ services:
       GPU_MEMORY_UTILIZATION: 0.7
       TEMPERATURE: 0.0
       GENERATOR_MODEL: Qwen/Qwen3.5-2B
-    container_name: lecture-rag-api
+    #container_name: lecture-rag-api
     ports:
       - "8000:8000"
     volumes:
