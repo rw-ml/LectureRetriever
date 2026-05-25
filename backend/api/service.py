@@ -59,6 +59,7 @@ class QAService:
 
         self.vLLM_client = VLLMClient(
             base_url=self.model_server.get_url(),
+            model_name=generator_model,
             max_tokens=max_tokens,
             temperature=temperature,
         )
